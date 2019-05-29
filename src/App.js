@@ -1,12 +1,10 @@
 import React, { Component } from 'react';
 import 'react-vis/dist/style.css';
 import { dsv } from 'd3-fetch';
-import moment from 'moment';
 import {
-  XYPlot,
+  FlexibleWidthXYPlot,
   VerticalBarSeries,
   LineMarkSeries,
-  DiscreteColorLegend,
   XAxis,
   YAxis,
   Hint,
@@ -34,6 +32,8 @@ class App extends Component {
 
     this.state = {
       data: [],
+      ethnicityFilter: null,
+      ethnicities: [],
       hoverData: null,
     };
     //get data
@@ -47,37 +47,72 @@ class App extends Component {
         rank: +d['Rank'],
       };
     }).then((data) => {
-      const totalBabiesByYear = Object.entries(data.reduce((acc, row) => {
-        if(row.yearOfBirth in acc) {
-          acc[row.yearOfBirth] = acc[row.yearOfBirth] + row.count
-        } else {
-          acc[row.yearOfBirth] = row.count
-        }
-        return acc;
-      }, {})).map(([k, v]) => ({x: +k, y: v}));
+      const chartData = this.calculateChartData(data);
+      const ethnicities = this.getEthnicities(data);
 
-      const popularNames = ["Liam", "Jacob", "Dylan", "Ethan", "David", "Aiden", "Noah", "Matthew", "Olivia", "Emma"];
-      const namesWithData = popularNames.map(name => ({name, data: getPopularityByYearForName(data, name)}));
-
-      const oliviaData = data.filter(d => d.firstName === 'Olivia');
-      const oliviasByYear = Object.entries(oliviaData.reduce((acc, row) => {
-        if(row.yearOfBirth in acc) {
-          acc[row.yearOfBirth] = acc[row.yearOfBirth] + row.count
-        } else {
-          acc[row.yearOfBirth] = row.count
-        }
-        return acc;
-      }, {})).map(([k, v]) => ({x: +k, y: v}));
-
-      this.setState({data, totalBabiesByYear, namesWithData, oliviasByYear})
+      this.setState({...chartData, data, ethnicities })
     });
+  }
+  getEthnicities(data) {
+    return Object.keys(data.reduce((acc, d) => {
+      acc[d.ethnicity] = true;
+      return acc;
+    }, {}))
+  }
+  getTotalBabiesByYear(data) {
+    return Object.entries(data.reduce((acc, row) => {
+      if(row.yearOfBirth in acc) {
+        acc[row.yearOfBirth] = acc[row.yearOfBirth] + row.count
+      } else {
+        acc[row.yearOfBirth] = row.count
+      }
+      return acc;
+    }, {})).map(([k, v]) => ({x: +k, y: v}));
+  }
+  getTopBabyNames(data, limit) {
+    const namesWithCounts = Object.entries(data.reduce((acc, row) => {
+      if(row.firstName in acc) {
+        acc[row.firstName] = acc[row.firstName] + row.count
+      } else {
+        acc[row.firstName] = row.count
+      }
+      return acc;
+    }, {}));
+    namesWithCounts.sort((a, b) => {
+      if(a[1] < b[1]) {
+        return 1;
+      }
+      if(a[1] > b[1]) {
+        return -1;
+      }
+      return 0;
+    });
+    return namesWithCounts.slice(0, limit).map(([k, v]) => k);
+  }
+  getYearlyDataForNames(data, names) {
+      return names.map(name => ({name, data: getPopularityByYearForName(data, name)}));
+  }
+  calculateChartData(data, ethnicityFilter) {
+    const totalBabiesByYear = this.getTotalBabiesByYear(data);
+    const top10BabyNames = this.getTopBabyNames(data, 10);
+    const namesWithData = this.getYearlyDataForNames(data, top10BabyNames);
+    return {
+      ethnicityFilter,
+      totalBabiesByYear,
+      namesWithData,
+    };
+  }
+  filterData(filter) {
+    const chartData = this.calculateChartData(this.state.data.filter((d) => d.ethnicity === filter));
+    this.setState({...chartData, ethnicityFilter: filter});
   }
   render() {
     const {
-      data,
       hoverData,
       namesWithData,
       totalBabiesByYear,
+      ethnicities,
+      ethnicityFilter,
     } = this.state;
 
     if(!namesWithData) {
@@ -88,39 +123,59 @@ class App extends Component {
 
     return (
       <div className="App">
-        <XYPlot
-          width={1200}
-          height={600}
-          margin={{
-            left: 70
-          }}
-          xType="ordinal"
-          onMouseLeave={() => this.setState({hoverData: null})}
-        >
-          {namesWithData.map(({name, data}) => (<LineMarkSeries
-            onValueMouseOver={(d) => this.setState({hoverData: d})}
-            key={name}
-            data={data}
-          />))}
-          {!!hoverData && <Hint value={hoverData} />}
-          <XAxis />
-          <YAxis />
-        </XYPlot>
-        <DiscreteColorLegend width={200} items={namesWithData.map(d => d.name)} />
-        <XYPlot
-          width={600}
-          height={600}
-          margin={{
-            left: 70
-          }}
-          xType="ordinal"
-        >
-          <VerticalBarSeries
-            data={totalBabiesByYear}
-          />
-          <XAxis />
-          <YAxis />
-        </XYPlot>
+        <div className="row">
+          <div className="chart double">
+            <FlexibleWidthXYPlot
+              animate
+              height={300}
+              margin={{
+                left: 70,
+              }}
+              xType="ordinal"
+              onMouseLeave={() => this.setState({hoverData: null})}
+            >
+              {namesWithData.map(({name, data}) => (<LineMarkSeries
+                animation
+                onValueMouseOver={(d) => this.setState({hoverData: d})}
+                key={name}
+                data={data}
+              />))}
+              {!!hoverData && <Hint value={hoverData} />}
+              <XAxis />
+              <YAxis />
+            </FlexibleWidthXYPlot>
+          </div>
+          <div className="chart">
+            <FlexibleWidthXYPlot
+              height={300}
+              margin={{
+                left: 70
+              }}
+              xType="ordinal"
+            >
+              <VerticalBarSeries
+                animation
+                data={totalBabiesByYear}
+              />
+              <XAxis />
+              <YAxis />
+            </FlexibleWidthXYPlot>
+          </div>
+        </div>
+        <div className="row">
+          <ul className="ethnicities">
+            {ethnicities.map((e) => {
+              return (
+                <li
+                  className={e === ethnicityFilter ? 'selected' : ''}
+                  onClick={() => this.filterData(e)}
+                >
+                  {e}
+                </li>
+              );
+            })}
+          </ul>
+        </div>
       </div>
     );
 

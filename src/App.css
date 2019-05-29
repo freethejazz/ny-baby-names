@@ -1,4 +1,14 @@
-.App {
+.row {
+  padding: 20px;
+  display: flex;
+  flex-direction: row;
+}
+
+.chart {
+  flex: 1;
+}
+.double {
+  flex: 2;
 }
 
 .App-logo {
@@ -20,6 +30,16 @@
 
 .App-link {
   color: #61dafb;
+}
+
+.ethnicities li {
+  display: inline-block;
+  margin: 5px;
+  padding: 5px;
+}
+
+li.selected {
+  background-color: lightgrey;
 }
 
 @keyframes App-logo-spin {
